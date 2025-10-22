@@ -21,10 +21,16 @@ class BaseWord(Base):
 
 class UserWord(Base):
     # связь между таблицами пользователя и слов
-    pass
+    id = sq.Column(sq.Integer, primary_key=True)
+    # fk to user id
+    # fk to word id
+    is_learned = sq.Column(sq.Boolean, nullable=False)
+    wrong_attempts = sq.Column(sq.Integer)
+
 
 class UserCustomWord(Base):
-    #таблица пользовательских слов
+    # таблица пользовательских слов
+    id = sq.Column(sq.Integer, primary_key=True)
     pass
 
 
