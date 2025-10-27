@@ -15,25 +15,27 @@ def random_word() -> list:
     return rand_word_list
 
 # возвращает список рус\анг слова по id
-def target_translate(id = 1500) -> list:
-    # target_list = []
-    # for target_trans in session.query(sql.Word).filter(sql.Word.id == id).all():
-    #     target_list.append(target_trans.eng_word)
-    #     target_list.append(target_trans.translation)
-    #     target_list.append(target_trans.id)
-    target_list = session.query(sql.Word).filter(sql.Word.id == id).all()
+def target_translate(id = 1500):
+    target_list = session.query(sql.Word).filter(sql.Word.id == id).first()
     return target_list
 
 def new_word(tg_id: int, word_id: int) -> None:
-    for user_id in session.query(sql.User).filter(sql.User.tg_id == tg_id).all():
+    # Находим пользователя
+    user = session.query(sql.User).filter(sql.User.tg_id == tg_id).first()
+    if not user:
+        return
+    # Проверяем, есть ли уже такое слово у пользователя
+    existing_word = session.query(sql.UserWord).filter(
+            sql.UserWord.word_id == word_id
+            ).first()
 
-        try:
-            user_word = sql.UserWord(user_id=user_id.id, word_id=word_id)
-            session.add(user_word)
-            session.commit()
-        except:
-            pass
+    if existing_word:
+         return
 
+    # Добавляем новое слово
+    user_word = sql.UserWord(user_id=user.id, word_id=word_id, wrong_attempts=0)
+    session.add(user_word)
+    session.commit()
 
 
 def new_user(uid: int):
@@ -41,3 +43,4 @@ def new_user(uid: int):
         print('пользователь есть')
     else:
         print('нет пользователя')
+
