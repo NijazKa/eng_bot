@@ -4,6 +4,7 @@ from telebot import types, TeleBot, custom_filters
 from telebot.storage import StateMemoryStorage
 from telebot.handler_backends import State, StatesGroup
 
+import requests
 from config import TOKEN
 import sql
 from sql import session
@@ -24,6 +25,9 @@ class MyStates(StatesGroup):
     target_word = State()
     translate_word = State()
     another_words = State()
+    wait_for_new_word = State()
+    wait_for_translation = State()
+    wait_for_delete = State()
 
 
 @bot.message_handler(commands=['start'])
@@ -101,14 +105,74 @@ def next_cards(message):
 
 @bot.message_handler(func=lambda message: message.text == Command.ADD_WORD)
 def add_word(message):
-    """Обработчик кнопки Добавить слово ➕"""
-    bot.send_message(message.chat.id, "Функция добавления слова")
+    bot.send_message(message.chat.id, "Функция добавления слова. Введите слово на русском:")
+    bot.set_state(message.from_user.id, MyStates.wait_for_new_word, message.chat.id)
 
+
+@bot.message_handler(state=MyStates.wait_for_new_word)
+def get_russian_word(message):
+    russian_word = message.text.strip()
+
+    # Сохраняем в данные состояния
+    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+        data['new_russian_word'] = russian_word
+
+    bot.send_message(message.chat.id, f"Теперь введите перевод для '{russian_word}':")
+    bot.set_state(message.from_user.id, MyStates.wait_for_translation, message.chat.id)
+
+
+@bot.message_handler(state=MyStates.wait_for_translation)
+def get_english_translation(message):
+    """Получаем русский перевод"""
+    english_word = message.text.strip()
+
+    # Получаем английское слово из предыдущего шага
+    with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+        russian_word = data['new_russian_word']
+
+    # Сохраняем в базу данных
+    user_id = message.chat.id
+    description = requests.get(f'https://api.dictionaryapi.dev/api/v2/entries/en/{english_word}')
+    try:
+        desc_text = description.json()[0]['meanings'][-1]['definitions'][0]['example']
+    except:
+        try:
+            desc_text = description.json()[0]['meanings'][0]['definitions'][0]['example']
+        except:
+            try:
+                desc_text = description.json()[0]['meanings'][1]['definitions'][0]['example']
+            except:
+                try:
+                    desc_text = description.json()[0]['meanings'][2]['definitions'][0]['example']
+                except:
+                    desc_text = 'нет примеров'
+    new_word = sql.UserWord(user_id=user_id, eng_word=english_word, translatioin=russian_word, example_usage=desc_text)
+    session.add(new_word)
+    session.commit()
+
+    bot.send_message(message.chat.id, f"✅ Слово '{russian_word}' добавлено с переводом '{english_word}'!")
+
+    # Сбрасываем состояние и возвращаем к основному режиму
+    bot.delete_state(message.from_user.id, message.chat.id)
+    create_word_cards(message)  # показываем новое слово для изучения
 
 @bot.message_handler(func=lambda message: message.text == Command.DELETE_WORD)
 def delete_word(message):
     """Обработчик кнопки Удалить слово🔙"""
-    bot.send_message(message.chat.id, "Функция удаления слова")
+    bot.send_message(message.chat.id, "Функция удаления слова\n Введите слово для удаления:")
+    bot.set_state(message.from_user.id, MyStates.wait_for_delete, message.chat.id)
+
+@bot.message_handler(state=MyStates.wait_for_delete)
+def delete_word(message):
+    delete_word = message.text.strip()
+    session.query(sql.UserWord).filter(sql.UserWord.translation == delete_word).delete()
+    session.commit()
+
+    bot.send_message(message.chat.id, f"✅ Слово '{delete_word}' удалено из вашей базы!")
+
+    # Сбрасываем состояние и возвращаем к основному режиму
+    bot.delete_state(message.from_user.id, message.chat.id)
+    create_word_cards(message)  # показываем новое слово для изучения
 
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
