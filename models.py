@@ -55,4 +55,4 @@ def create_tables(engine):
     Base.metadata.create_all(engine)
 
 
-# create_tables()
+create_tables()
