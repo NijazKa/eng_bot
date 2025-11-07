@@ -68,11 +68,11 @@ ADMIN_IDS = [123456789]  # Ваш ID в Telegram
 ### Шаг 4: Импорт слов в базу данных
 
 ```bash
-python models.py
+python word_table_add.py
 ```
 
 
-### Шаг 4: Запуск бота
+### Шаг 5: Запуск бота
 
 ```bash
 
